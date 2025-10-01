@@ -1,0 +1,125 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <title>어린이 테트리스 (회전 & 하드 드롭)</title>
+    <style>
+        /* 🎨 CSS: 게임 화면 디자인 (이전과 동일) */
+        body {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            margin: 0;
+            background-color: #f0f0f0;
+            font-family: 'Arial', sans-serif;
+        }
+        .game-container {
+            display: flex;
+            gap: 20px;
+            background-color: #fff;
+            padding: 20px;
+            border-radius: 10px;
+            box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+        }
+        #game-board {
+            border: 5px solid #333;
+            background-color: #000;
+        }
+        .info-panel {
+            width: 150px;
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
+        }
+        .info-box {
+            padding: 10px;
+            border: 2px solid #ccc;
+            border-radius: 5px;
+            background-color: #e9e9e9;
+        }
+        #next-block-canvas {
+            border: 1px solid #aaa;
+            background-color: #333;
+        }
+        h2 {
+            margin-top: 0;
+            color: #333;
+        }
+    </style>
+</head>
+<body>
+    <div class="game-container">
+        <canvas id="game-board" width="300" height="600"></canvas>
+        <div class="info-panel">
+            <div class="info-box">
+                <h2>점수</h2>
+                <div id="score">0</div>
+            </div>
+            <div class="info-box">
+                <h2>레벨</h2>
+                <div id="level">1</div>
+            </div>
+            <div class="info-box">
+                <h2>다음 블록</h2>
+                <canvas id="next-block-canvas" width="120" height="120"></canvas>
+            </div>
+            <div class="info-box">
+                <p>← →: 이동</p>
+                <p>↑: 회전</p>
+                <p>↓: 빠르게 내리기</p>
+                <p><strong>SPACE: 맨 밑으로 (하드 드롭)</strong></p>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // 🚀 JAVASCRIPT: 게임 로직
+        const BOARD_COLS = 10;
+        const BOARD_ROWS = 20;
+        const BLOCK_SIZE = 30;
+        
+        // 캔버스 및 DOM 설정 (이전과 동일)
+        const boardCanvas = document.getElementById('game-board');
+        const boardCtx = boardCanvas.getContext('2d');
+        const nextCanvas = document.getElementById('next-block-canvas');
+        const nextCtx = nextCanvas.getContext('2d');
+        const scoreElement = document.getElementById('score');
+        const levelElement = document.getElementById('level');
+
+        // 블록 모양 (간소화)
+        const SHAPES = [
+            [[1, 1, 1, 1]],                    // I
+            [[1, 1], [1, 1]],                  // O
+            [[0, 1, 0], [1, 1, 1]],            // T
+            [[1, 1, 0], [0, 1, 1]],            // Z
+            [[0, 1, 1], [1, 1, 0]],            // S
+            [[1, 0, 0], [1, 1, 1]],            // J
+            [[0, 0, 1], [1, 1, 1]]             // L
+        ];
+        const COLORS = ['cyan', 'yellow', 'purple', 'red', 'green', 'blue', 'orange'];
+
+        let board = Array.from({ length: BOARD_ROWS }, () => Array(BOARD_COLS).fill(0));
+        let score = 0;
+        let level = 1;
+        let currentPiece, nextPiece;
+        let dropCounter = 0;
+        let dropInterval = 1000;
+        let lastTime = 0;
+        let startTime = Date.now();
+
+        // --- 블록 클래스 및 함수 ---
+        class Piece {
+            constructor(shape, color) {
+                this.shape = shape;
+                this.color = color;
+                this.x = Math.floor(BOARD_COLS / 2) - Math.floor(shape[0].length / 2);
+                this.y = 0;
+            }
+
+            // ⬆️ 회전 기능 구현
+            rotate() {
+                // 시계 방향 90도 회전 행렬 변환
+                const N = this.shape.length;
+                const M = this.shape[0].length;
+                // 새로운 배열의 크기는 N x M -> M x N 으로 바뀐다.
